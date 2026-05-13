@@ -1,7 +1,8 @@
 import fs from 'fs';
+import initCycleTLS from 'cycletls';
 import { checkUsername } from './utils/check.js';
 import { claimUsername } from './utils/claim.js';
-import buffer from 'env-nodejs';
+
 function readLines(filePath) {
   try {
     const data = fs.readFileSync(filePath, 'utf8').trim();
@@ -46,37 +47,38 @@ async function main() {
     process.exit(1);
   }
 
+  const cycleTLS = await initCycleTLS();
+
   const targets = usernames.map((username, i) => {
     const { token, password } = parseTokenPassword(tokenLines[i], i);
-
-    return {
-      username,
-      token,
-      password
-    };
+    return { username, token, password };
   });
 
-  console.log(`🌐 Monitoring ${targets.length} username(s)\n`);
+  console.log(`🌐 Monitoring ${targets.length} username(s) in parallel\n`);
 
-  for (const target of targets) {
-    const available = await checkUsername(target.username, target.token);
+  const processTargets = async () => {
+    await Promise.all(targets.map(async (target) => {
+      const available = await checkUsername(cycleTLS, target.username, target.token);
+      if (available) {
+        await claimUsername(cycleTLS, target.username, target.token, target.password);
+      }
+    }));
+  };
 
-    if (available) {
-      await claimUsername(target.username, target.token, target.password);
-    }
-  }
+  // Initial check
+  await processTargets();
 
   console.log(`⏳ Monitoring: ${targets.map(t => `@${t.username}`).join(', ')}\n`);
 
-  setInterval(async () => {
-    for (const target of targets) {
-      const available = await checkUsername(target.username, target.token);
+  // Interval check
+  setInterval(processTargets, 5000);
 
-      if (available) {
-        await claimUsername(target.username, target.token, target.password);
-      }
-    }
-  }, 5000);
+  // Handle graceful shutdown
+  process.on('SIGINT', async () => {
+    console.log('\n👋 Shutting down...');
+    await cycleTLS.exit();
+    process.exit();
+  });
 }
 
 main().catch(console.error);

@@ -1,3 +1,13 @@
+<<<<<<< HEAD
+node_modules
+.DS_Store
+tokens.txt
+usernames.txt
+config.json
+.env
+*.log
+GEMINI.md
+=======
 # Logs
 logs
 *.log
@@ -141,3 +151,4 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+>>>>>>> upstream/main
